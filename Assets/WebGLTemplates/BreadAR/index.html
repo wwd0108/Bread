@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>{{{ PRODUCT_NAME }}} - 빵 속 탐험 AR</title>
+    <!-- Google Fonts for Pretendard/Inter-like clean modern typographies -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 1. Background Layer: Unity Canvas -->
+    <div id="unity-container">
+        <canvas id="unity-canvas"></canvas>
+        <!-- Elegant Loading Bar Overlay -->
+        <div id="unity-loading-bar">
+            <div class="loading-content">
+                <div class="loading-logo">🍞</div>
+                <div class="loading-title">빵 속 탐험 AR 로딩 중</div>
+                <div class="progress-bar-container">
+                    <div id="unity-progress-bar-full"></div>
+                </div>
+                <div class="loading-status">카메라 및 3D 모델 리소스를 준비하고 있습니다...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Foreground Layer: Floating Web UI Overlay (Toss Design System) -->
+    <div id="web-ui-overlay">
+        
+        <!-- Header Status Bar -->
+        <header class="app-header">
+            <div class="logo">Bread AR</div>
+            <div id="scan-badge" class="badge badge-scan">
+                <span class="pulse-dot"></span>
+                <span id="badge-text">빵 감지 대기 중</span>
+            </div>
+        </header>
+
+        <!-- Dynamic Reticle (Scan Guide) -->
+        <div id="scan-guide" class="scan-guide-container">
+            <div class="reticle-circle">
+                <div class="corner top-left"></div>
+                <div class="corner top-right"></div>
+                <div class="corner bottom-left"></div>
+                <div class="corner bottom-right"></div>
+            </div>
+            <p class="scan-instruction">동그라미 영역에 빵이 잘 비치도록 맞추어 주세요</p>
+        </div>
+
+        <!-- 3. Bottom Information Card (Figma to Web UI) -->
+        <div id="bread-info-card" class="slide-card hidden">
+            <div class="card-drag-handle"></div>
+            
+            <div class="card-header">
+                <div class="bread-title-group">
+                    <h2 id="bread-name">프리미엄 소금빵</h2>
+                    <span id="bread-category" class="bread-tag">#시그니처</span>
+                </div>
+                <div class="price-tag" id="bread-price">3,500원</div>
+            </div>
+
+            <div class="card-body">
+                <!-- Sweetness Traffic Light (당도 신호등) -->
+                <div class="sweetness-container">
+                    <span class="label">당도 신호등</span>
+                    <div class="traffic-light-pill">
+                        <div id="sugar-low" class="light-node">
+                            <span class="dot"></span>
+                            <span class="text">저당</span>
+                        </div>
+                        <div id="sugar-mid" class="light-node">
+                            <span class="dot"></span>
+                            <span class="text">보통</span>
+                        </div>
+                        <div id="sugar-high" class="light-node">
+                            <span class="dot"></span>
+                            <span class="text">고당</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p id="bread-description" class="description-text">
+                    프랑스 발효버터를 아낌없이 사용하여 겉은 바삭하고 속은 부드러운 오리지널 소금빵입니다. 한 입 물었을 때 버터 풍미가 입안에 가득 차오릅니다.
+                </p>
+
+                <!-- Interactive CTA Button -->
+                <button id="slice-btn" class="toss-btn toss-btn-primary" onclick="requestSliceAnimation()">
+                    🥐 3D 단면 썰어보기
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. Recognition Failure Modal (3-time fail guide) -->
+        <div id="failure-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-icon">😢</div>
+                <h3 class="modal-title">빵이 잘 인식되지 않나요?</h3>
+                <p class="modal-desc">
+                    카메라 각도를 살짝 바꾸거나, 조명이 밝은 곳에서 빵이 화면 정중앙에 위치하도록 촬영해 보세요. 
+                </p>
+                <div class="modal-buttons">
+                    <button class="toss-btn toss-btn-secondary" onclick="manualFallback()">
+                        수동으로 정보 보기
+                    </button>
+                    <button class="toss-btn toss-btn-primary" onclick="retryScanning()">
+                        다시 시도하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Unity Instance Setup Script -->
+    <script>
+        var container = document.querySelector("#unity-container");
+        var canvas = document.querySelector("#unity-canvas");
+        var loadingBar = document.querySelector("#unity-loading-bar");
+        var progressBarFull = document.querySelector("#unity-progress-bar-full");
+
+        var buildUrl = "Build";
+        var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+        var config = {
+            dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+            frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+            workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+            codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#if MEMORY_FILENAME
+            memoryUrl: buildUrl + "/{{{ MEMORY_FILENAME }}}",
+#endif
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "{{{ COMPANY_NAME }}}",
+            productName: "{{{ PRODUCT_NAME }}}",
+            productVersion: "{{{ PRODUCT_VERSION }}}",
+        };
+
+        // Mobile responsiveness setting
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            var meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = 'width=device-width, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+            document.getElementsByTagName('head')[0].appendChild(meta);
+            container.className = "unity-mobile";
+            canvas.className = "unity-mobile";
+        } else {
+            canvas.style.width = "100%";
+            canvas.style.height = "100%";
+        }
+
+        loadingBar.style.display = "block";
+
+        var script = document.createElement("script");
+        script.src = loaderUrl;
+        script.onload = () => {
+            createUnityInstance(canvas, config, (progress) => {
+                progressBarFull.style.width = 100 * progress + "%";
+            }).then((unityInstance) => {
+                window.unityInstance = unityInstance;
+                loadingBar.style.display = "none";
+                console.log("Unity Instance loaded successfully.");
+            }).catch((message) => {
+                alert("Unity 로딩 중 오류 발생: " + message);
+            });
+        };
+        document.body.appendChild(script);
+
+        // ==========================================
+        // 5. JavaScript <=> Unity C# Communication Logic
+        // ==========================================
+
+        // Mock DB for Bread Information
+        var breadDatabase = {
+            "salt_bread": {
+                name: "소금빵",
+                category: "#겉바속촉 #버터가득",
+                price: "3,500원",
+                sugar: "low",
+                description: "프랑스 엘르앤비르 발효버터의 깊은 고소함과 말돈 천일염의 짭조름한 조화가 환상적인 베스트셀러 소금빵입니다."
+            },
+            "melon_bread": {
+                name: "메론빵",
+                category: "#달달바삭 #일본전통",
+                price: "3,800원",
+                sugar: "high",
+                description: "바삭바삭 달콤한 메론 쿠키 껍질 속 촉촉하고 부드러운 우유 식빵 결이 숨어있는 입안 가득 행복해지는 메론빵입니다."
+            },
+            "croissant": {
+                name: "크루아상",
+                category: "#겹겹이예술 #바삭촉촉",
+                price: "4,000원",
+                sugar: "mid",
+                description: "얇은 페이스트리 결이 겹겹이 살아있어 한 입 베어물면 파삭하게 부서지며 진한 버터 향을 발산하는 크루아상입니다."
+            }
+        };
+
+        // Callback function called from Unity C# when a bread is detected
+        window.OnBreadDetected = function(breadId) {
+            console.log("Bread detected from Unity: " + breadId);
+            
+            var bread = breadDatabase[breadId];
+            if (!bread) return;
+
+            // 1. Update UI Elements
+            document.getElementById("bread-name").innerText = bread.name;
+            document.getElementById("bread-category").innerText = bread.category;
+            document.getElementById("bread-price").innerText = bread.price;
+            document.getElementById("bread-description").innerText = bread.description;
+
+            // 2. Set Sweetness Traffic Light (당도 신호등)
+            updateTrafficLight(bread.sugar);
+
+            // 3. Update Status Badges
+            document.getElementById("badge-text").innerText = bread.name + " 인식 성공!";
+            var badge = document.getElementById("scan-badge");
+            badge.className = "badge badge-success";
+
+            // 4. Hide guide and slide up info card
+            document.getElementById("scan-guide").classList.add("hidden");
+            var card = document.getElementById("bread-info-card");
+            card.classList.remove("hidden");
+            card.classList.add("active");
+            
+            // 5. Hide failure modal if active
+            document.getElementById("failure-modal").classList.add("hidden");
+        };
+
+        // Callback function called from Unity C# when tracking fails (e.g. 3 failures)
+        window.OnTrackingFailed = function() {
+            console.warn("Unity reported tracking failed 3 times.");
+            document.getElementById("failure-modal").classList.remove("hidden");
+        };
+
+        // Update the custom sweetness traffic light styling
+        function updateTrafficLight(level) {
+            // Reset active states
+            document.getElementById("sugar-low").classList.remove("active");
+            document.getElementById("sugar-mid").classList.remove("active");
+            document.getElementById("sugar-high").classList.remove("active");
+
+            if (level === "low") {
+                document.getElementById("sugar-low").classList.add("active");
+            } else if (level === "mid") {
+                document.getElementById("sugar-mid").classList.add("active");
+            } else if (level === "high") {
+                document.getElementById("sugar-high").classList.add("active");
+            }
+        }
+
+        // Triggered when user clicks "3D 단면 썰어보기" button
+        function requestSliceAnimation() {
+            console.log("Requesting 3D Slice animation from Unity...");
+            
+            // Modern WebGL method: Send Message to Unity GameObject
+            if (window.unityInstance) {
+                // GameObject name: "ARController", Method: "TriggerSliceAnimation"
+                window.unityInstance.SendMessage("ARController", "TriggerSliceAnimation");
+                
+                var btn = document.getElementById("slice-btn");
+                btn.innerText = "🔪 3D 단면 절단 중...";
+                btn.disabled = true;
+                
+                setTimeout(() => {
+                    btn.innerText = "🥐 3D 단면 잘라보기";
+                    btn.disabled = false;
+                }, 2500);
+            } else {
+                alert("Unity 로딩 대기 중입니다. 완료 후 다시 시도해 주세요.");
+            }
+        }
+
+        // Action when user clicks "수동으로 빵 정보 보기" on failure modal
+        function manualFallback() {
+            // Display salt_bread as default fallback
+            window.OnBreadDetected("salt_bread");
+        }
+
+        // Action when user clicks "다시 시도하기" on failure modal
+        function retryScanning() {
+            document.getElementById("failure-modal").classList.add("hidden");
+            document.getElementById("scan-guide").classList.remove("hidden");
+            
+            // Reset status badge
+            document.getElementById("badge-text").innerText = "빵 감지 대기 중";
+            var badge = document.getElementById("scan-badge");
+            badge.className = "badge badge-scan";
+
+            // Signal Unity to reset its tracking failure counts
+            if (window.unityInstance) {
+                window.unityInstance.SendMessage("ARController", "ResetTrackingFailures");
+            }
+        }
+    </script>
+</body>
+</html>
