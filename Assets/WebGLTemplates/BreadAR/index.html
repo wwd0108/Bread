@@ -174,6 +174,13 @@
 
         // Mock DB for Bread Information
         var breadDatabase = {
+            "hamcheese_morning_bread": {
+                name: "햄치즈 모닝빵",
+                category: "#든든한한끼 #단짠단짠",
+                price: "2,800원",
+                sugar: "low",
+                description: "부드럽고 촉촉한 모닝빵 속에 고소한 슬라이스 햄과 체다치즈가 가득 차 있어 입안 가득 짭조름함과 풍미를 선사합니다."
+            },
             "salt_bread": {
                 name: "소금빵",
                 category: "#겉바속촉 #버터가득",
@@ -234,6 +241,15 @@
             document.getElementById("failure-modal").classList.remove("hidden");
         };
 
+        // Callback function called from Unity C# to report scanning progress (0.0 to 1.0)
+        window.OnScanProgress = function(progress) {
+            var percent = Math.round(progress * 100);
+            var instruction = document.querySelector(".scan-instruction");
+            if (instruction) {
+                instruction.innerText = "빵 분석 중... " + percent + "% 완료";
+            }
+        };
+
         // Update the custom sweetness traffic light styling
         function updateTrafficLight(level) {
             // Reset active states
@@ -288,11 +304,17 @@
             var badge = document.getElementById("scan-badge");
             badge.className = "badge badge-scan";
 
+            var instruction = document.querySelector(".scan-instruction");
+            if (instruction) {
+                instruction.innerText = "동그라미 영역에 빵이 잘 비치도록 맞추어 주세요";
+            }
+
             // Signal Unity to reset its tracking failure counts
             if (window.unityInstance) {
                 window.unityInstance.SendMessage("ARController", "ResetTrackingFailures");
             }
         }
+
     </script>
 </body>
 </html>
