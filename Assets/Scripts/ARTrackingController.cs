@@ -2,13 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
-#if AR_FOUNDATION_PRESENT
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
-#endif
+
 
 namespace BreadAR
 {
+    public enum ScanningMode
+    {
+        OrganicBread, // 1단계: 실물 빵 자체 스캔 모드
+        Nametag       // 2단계: 3회 실패 후 글자/네임텍 카드 스캔 모드
+    }
+
     public class ARTrackingController : MonoBehaviour
     {
         // -------------------------------------------------------------
@@ -29,20 +34,23 @@ namespace BreadAR
 
         private static void TriggerOnTrackingFailed()
         {
-            Debug.Log("[Mock Bridge] OnTrackingFailed called (3 failures simulated)");
+            Debug.Log("[Mock Bridge] OnTrackingFailed called (Transitioned to Nametag Scan Mode)");
         }
         #endif
 
         [Header("AR Configuration")]
-        #if AR_FOUNDATION_PRESENT
         [SerializeField] private ARTrackedImageManager trackedImageManager;
-        #endif
+        [SerializeField] private TemporarySliceController sliceController;
         
         [Header("Tracking Parameters")]
         [Tooltip("Seconds of no detection before incrementing fail count")]
         [SerializeField] private float trackingTimeoutSeconds = 8.0f;
         [SerializeField] private int maxAllowedFailures = 3;
+        
+        [Header("Interaction Configuration")]
+        [SerializeField] private BreadSliceAnimator sliceAnimator;
 
+        private ScanningMode currentMode = ScanningMode.OrganicBread;
         private int currentFailureCount = 0;
         private float timeoutTimer = 0f;
         private bool isTrackingActive = true;
@@ -50,33 +58,36 @@ namespace BreadAR
 
         private void Awake()
         {
-            // Auto-locate ARTrackedImageManager if present and not set
-            #if AR_FOUNDATION_PRESENT
             if (trackedImageManager == null)
             {
                 trackedImageManager = FindFirstObjectByType<ARTrackedImageManager>();
             }
-            #endif
+
+            if (sliceController == null)
+            {
+                sliceController = FindFirstObjectByType<TemporarySliceController>();
+            }
+            if (sliceController == null)
+            {
+                GameObject mockBread = new GameObject("MockBreadMesh");
+                sliceController = mockBread.AddComponent<TemporarySliceController>();
+            }
         }
 
         private void OnEnable()
         {
-            #if AR_FOUNDATION_PRESENT
             if (trackedImageManager != null)
             {
                 trackedImageManager.trackedImagesChanged += OnTrackedImagesChanged;
             }
-            #endif
         }
 
         private void OnDisable()
         {
-            #if AR_FOUNDATION_PRESENT
             if (trackedImageManager != null)
             {
                 trackedImageManager.trackedImagesChanged -= OnTrackedImagesChanged;
             }
-            #endif
         }
 
         private void Update()
@@ -86,12 +97,12 @@ namespace BreadAR
             // -------------------------------------------------------------
             // 2. Editor-Only Simulation Hotkeys (Developer Convenience)
             // -------------------------------------------------------------
-            #if UNITY_EDITOR || true // Keep simulation active in WebGL for testing if camera permission is missing
+            #if UNITY_EDITOR || true // Keep simulation active in WebGL for testing
             HandleEditorSimulationInputs();
             #endif
 
-            // Tracking Timeout Calculation
-            if (detectedBreads.Count == 0)
+            // Tracking Timeout Calculation (Only count timeouts in organic bread mode)
+            if (currentMode == ScanningMode.OrganicBread && detectedBreads.Count == 0)
             {
                 timeoutTimer += Time.deltaTime;
                 if (timeoutTimer >= trackingTimeoutSeconds)
@@ -101,7 +112,6 @@ namespace BreadAR
             }
         }
 
-        #if AR_FOUNDATION_PRESENT
         private void OnTrackedImagesChanged(ARTrackedImagesChangedEventArgs eventArgs)
         {
             foreach (var trackedImage in eventArgs.added)
@@ -121,41 +131,65 @@ namespace BreadAR
             {
                 string imageName = trackedImage.referenceImage.name.ToLower();
                 
-                // Map tracked image names to specific Bread IDs
-                string breadId = "";
+                // Map tracked image names to specific Bread and Nametag IDs
+                string detectedId = "";
+                
+                // Salt Bread mapping
                 if (imageName.Contains("salt") || imageName.Contains("salt_bread"))
                 {
-                    breadId = "salt_bread";
+                    detectedId = imageName.Contains("nametag") ? "salt_bread_nametag" : "salt_bread";
                 }
+                // Melon Bread mapping
                 else if (imageName.Contains("melon") || imageName.Contains("melon_bread"))
                 {
-                    breadId = "melon_bread";
+                    detectedId = imageName.Contains("nametag") ? "melon_bread_nametag" : "melon_bread";
                 }
+                // Croissant mapping
                 else if (imageName.Contains("croissant"))
                 {
-                    breadId = "croissant";
+                    detectedId = imageName.Contains("nametag") ? "croissant_nametag" : "croissant";
+                }
+                // Ham Cheese Morning Bread mapping
+                else if (imageName.Contains("ham") || imageName.Contains("morning"))
+                {
+                    detectedId = imageName.Contains("nametag") ? "hamcheese_morning_bread_nametag" : "hamcheese_morning_bread";
                 }
 
-                if (!string.IsNullOrEmpty(breadId))
+                if (!string.IsNullOrEmpty(detectedId))
                 {
-                    OnBreadRecognized(breadId);
+                    OnBreadOrNametagRecognized(detectedId);
                 }
             }
         }
-        #endif
 
-        private void OnBreadRecognized(string breadId)
+        private void OnBreadOrNametagRecognized(string detectedId)
+        {
+            // Check state conditions
+            bool isNametag = detectedId.EndsWith("_nametag");
+            string breadId = isNametag ? detectedId.Replace("_nametag", "") : detectedId;
+
+            if (currentMode == ScanningMode.OrganicBread && !isNametag)
+            {
+                // Successful primary bread match!
+                OnSuccess(breadId);
+            }
+            else if (currentMode == ScanningMode.Nametag && isNametag)
+            {
+                // Successful secondary nametag match fallback!
+                OnSuccess(breadId);
+            }
+        }
+
+        private void OnSuccess(string breadId)
         {
             timeoutTimer = 0f;
             currentFailureCount = 0;
             detectedBreads.Add(breadId);
             
-            Debug.Log($"[AR Controller] Bread Recognized: {breadId}");
+            Debug.Log($"[AR Controller] Success! Recognized Bread ID: {breadId} under mode: {currentMode}");
             
             // Send trigger to browser frontend
             TriggerOnBreadDetected(breadId);
-
-            // Play local Unity 3D particle or highlight effect
             PlayRecognitionEffect();
         }
 
@@ -163,12 +197,15 @@ namespace BreadAR
         {
             timeoutTimer = 0f;
             currentFailureCount++;
-            Debug.LogWarning($"[AR Controller] Tracking failed. Count: {currentFailureCount}/{maxAllowedFailures}");
+            Debug.LogWarning($"[AR Controller] Bread scan failed. Fail count: {currentFailureCount}/{maxAllowedFailures}");
 
             if (currentFailureCount >= maxAllowedFailures)
             {
-                isTrackingActive = false;
-                Debug.LogError("[AR Controller] Max failures reached. Sending failure alert to web UI...");
+                // Transition dynamically to Nametag Scan Mode instead of shutting down!
+                currentMode = ScanningMode.Nametag;
+                Debug.LogError("[AR Controller] Max fails reached. Transitioning to Nametag Scanning Mode! Invoking Web alert...");
+                
+                // Signal web overlay to change guide text & show fallback instructions
                 TriggerOnTrackingFailed();
             }
         }
@@ -186,21 +223,34 @@ namespace BreadAR
         public void TriggerSliceAnimation()
         {
             Debug.Log("[AR Controller] Web UI triggered 3D Slicing Animation!");
-            
-            // Trigger your 3D Bread Object's animator or shader slicing effect here
-            // Example:
-            // Animator anim = GetComponentInChildren<Animator>();
-            // if(anim != null) anim.SetTrigger("Slice");
+            if (sliceAnimator == null)
+            {
+                sliceAnimator = FindFirstObjectByType<BreadSliceAnimator>();
+            }
+            if (sliceAnimator != null)
+            {
+                sliceAnimator.ToggleSlice();
+            }
         }
 
         // JS Command: window.unityInstance.SendMessage("ARController", "ResetTrackingFailures");
         public void ResetTrackingFailures()
         {
-            Debug.Log("[AR Controller] Web UI requested tracking reset. Restarting tracking...");
+            Debug.Log("[AR Controller] Web UI requested tracking reset. Restarting organic scan...");
             currentFailureCount = 0;
             timeoutTimer = 0f;
             detectedBreads.Clear();
+            currentMode = ScanningMode.OrganicBread;
             isTrackingActive = true;
+
+            if (sliceAnimator == null)
+            {
+                sliceAnimator = FindFirstObjectByType<BreadSliceAnimator>();
+            }
+            if (sliceAnimator != null)
+            {
+                sliceAnimator.ResetSlice();
+            }
         }
 
         // -------------------------------------------------------------
@@ -208,24 +258,22 @@ namespace BreadAR
         // -------------------------------------------------------------
         private void HandleEditorSimulationInputs()
         {
-            // Press '1' to simulate Salt Bread scanning
+            // Press '1' to simulate Organic Salt Bread scanning (Only works in OrganicBread mode)
             if (Input.GetKeyDown(KeyCode.Alpha1))
             {
-                OnBreadRecognized("salt_bread");
+                Debug.Log("[Sim] Pressed 1: Simulating Organic Salt Bread tracking...");
+                OnBreadOrNametagRecognized("salt_bread");
             }
-            // Press '2' to simulate Melon Bread scanning
-            if (Input.GetKeyDown(KeyCode.Alpha2))
+            // Press '4' to simulate Salt Bread Nametag scanning (Only works in Nametag mode)
+            if (Input.GetKeyDown(KeyCode.Alpha4))
             {
-                OnBreadRecognized("melon_bread");
+                Debug.Log("[Sim] Pressed 4: Simulating Salt Bread Nametag card tracking...");
+                OnBreadOrNametagRecognized("salt_bread_nametag");
             }
-            // Press '3' to simulate Croissant scanning
-            if (Input.GetKeyDown(KeyCode.Alpha3))
-            {
-                OnBreadRecognized("croissant");
-            }
-            // Press 'F' to force immediate tracking failure modal
+            // Press 'F' to force immediate tracking failure and shift to Nametag mode
             if (Input.GetKeyDown(KeyCode.F))
             {
+                Debug.Log("[Sim] Pressed F: Simulating Organic scan failures...");
                 currentFailureCount = maxAllowedFailures - 1;
                 HandleTrackingFailure();
             }
