@@ -1,0 +1,554 @@
+/* Premium WebGL AR Overlay UI - Toss Design System (TDS) Inspired */
+:root {
+    --toss-blue: #3182f6;
+    --toss-blue-hover: #1b64da;
+    --toss-blue-light: rgba(49, 130, 246, 0.1);
+    --text-primary: #191f28;
+    --text-secondary: #4e5968;
+    --text-tertiary: #8b95a1;
+    --bg-light: #f2f4f6;
+    --border-light: rgba(242, 244, 246, 0.8);
+    --success-green: #2ecc71;
+    --warning-yellow: #f39c12;
+    --danger-red: #e74c3c;
+    --glass-bg: rgba(255, 255, 255, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.45);
+    --shadow-premium: 0 16px 48px rgba(0, 0, 0, 0.09);
+    --font-family: 'Noto Sans KR', 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #000; /* Dark background to enhance AR camera experience */
+    font-family: var(--font-family);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================
+   1. Background Unity WebGL Container
+   ========================================== */
+#unity-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    z-index: 1;
+}
+
+#unity-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Elegant Preloader Overlay */
+#unity-loading-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #ffffff;
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.loading-content {
+    text-align: center;
+    width: 80%;
+    max-width: 320px;
+}
+
+.loading-logo {
+    font-size: 54px;
+    margin-bottom: 24px;
+    animation: pulse 1.8s infinite ease-in-out;
+}
+
+.loading-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 6px;
+    background-color: #e5ebf2;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+#unity-progress-bar-full {
+    height: 100%;
+    width: 0%;
+    background-color: var(--toss-blue);
+    border-radius: 99px;
+    transition: width 0.2s ease-out;
+}
+
+.loading-status {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    line-height: 1.5;
+}
+
+/* ==========================================
+   2. Foreground Floating UI Overlay
+   ========================================== */
+#web-ui-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none; /* Let clicks pass through to Unity AR unless hitting specific UI elements */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+}
+
+#web-ui-overlay * {
+    pointer-events: auto; /* Re-enable pointer events for UI items */
+}
+
+/* Header UI */
+.app-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 20;
+}
+
+.logo {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    color: #ffffff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 99px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    backdrop-filter: blur(12px);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.badge-scan {
+    background-color: rgba(25, 31, 40, 0.8);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.badge-success {
+    background-color: rgba(46, 204, 113, 0.9);
+    color: #ffffff;
+    border: 1px solid rgba(46, 204, 113, 0.2);
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--toss-blue);
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: flash 1.5s infinite;
+}
+
+/* Scan Target Reticle Guide */
+.scan-guide-container {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    z-index: 5;
+    pointer-events: none !important;
+}
+
+.reticle-circle {
+    width: 200px;
+    height: 200px;
+    border: 1.5px dashed rgba(255, 255, 255, 0.4);
+    border-radius: 40px;
+    position: relative;
+    box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25);
+    animation: reticle-pulse 3s infinite ease-in-out;
+    transition: all 0.4s ease-in-out;
+}
+
+.reticle-circle.analyzing {
+    border-color: var(--toss-blue);
+    border-style: dashed;
+    animation: reticle-spin 4s linear infinite, reticle-pulse-blue 1.5s infinite ease-in-out;
+}
+
+.reticle-circle.failed-flash {
+    border-color: var(--danger-red) !important;
+    border-style: solid !important;
+    animation: reticle-pulse-red 0.5s ease-in-out !important;
+}
+
+.reticle-circle.nametag-scanning {
+    border-color: var(--warning-yellow) !important;
+    border-style: dashed !important;
+    animation: reticle-spin 4s linear infinite, reticle-pulse-orange 1.5s infinite ease-in-out !important;
+}
+
+.reticle-circle.success-green {
+    border-color: var(--success-green) !important;
+    border-style: solid !important;
+    animation: reticle-pulse-green 1.5s infinite ease-in-out !important;
+}
+
+@keyframes reticle-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes reticle-pulse-blue {
+    0%, 100% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 15px rgba(49, 130, 246, 0.2); }
+    50% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 30px rgba(49, 130, 246, 0.6); }
+}
+
+@keyframes reticle-pulse-red {
+    0%, 100% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 0px rgba(231, 76, 60, 0); }
+    50% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 40px rgba(231, 76, 60, 0.8); }
+}
+
+@keyframes reticle-pulse-orange {
+    0%, 100% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 15px rgba(243, 156, 18, 0.2); }
+    50% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 30px rgba(243, 156, 18, 0.6); }
+}
+
+@keyframes reticle-pulse-green {
+    0%, 100% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 15px rgba(46, 204, 113, 0.2); }
+    50% { box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25), 0 0 35px rgba(46, 204, 113, 0.7); }
+}
+
+.corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border: 3.5px solid #ffffff;
+    pointer-events: none;
+}
+
+.top-left { top: -2px; left: -2px; border-right: none; border-bottom: none; border-top-left-radius: 12px;}
+.top-right { top: -2px; right: -2px; border-left: none; border-bottom: none; border-top-right-radius: 12px;}
+.bottom-left { bottom: -2px; left: -2px; border-right: none; border-top: none; border-bottom-left-radius: 12px;}
+.bottom-right { bottom: -2px; right: -2px; border-left: none; border-top: none; border-bottom-right-radius: 12px;}
+
+.scan-instruction {
+    margin-top: 24px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    background-color: rgba(25, 31, 40, 0.75);
+    padding: 8px 18px;
+    border-radius: 99px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    backdrop-filter: blur(8px);
+    max-width: 85%;
+}
+
+/* ==========================================
+   3. Toss Style Bottom Information Card
+   ========================================== */
+.slide-card {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 28px;
+    padding: 24px;
+    box-shadow: var(--shadow-premium);
+    backdrop-filter: blur(28px) saturate(190%);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
+    z-index: 30;
+    transform: translateY(120%);
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide-card.active {
+    transform: translateY(0);
+}
+
+.card-drag-handle {
+    width: 36px;
+    height: 5px;
+    background-color: rgba(78, 89, 104, 0.15);
+    border-radius: 99px;
+    margin: -10px auto 18px auto;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+}
+
+.bread-title-group h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+}
+
+.bread-tag {
+    font-size: 12px;
+    color: var(--toss-blue);
+    font-weight: 600;
+}
+
+.price-tag {
+    background-color: var(--toss-blue-light);
+    color: var(--toss-blue);
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.description-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-weight: 400;
+}
+
+/* Sweetness Traffic Light (당도 신호등) */
+.sweetness-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgba(242, 244, 246, 0.6);
+    padding: 12px 16px;
+    border-radius: 16px;
+    border: 1px solid var(--border-light);
+}
+
+.sweetness-container .label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.traffic-light-pill {
+    display: flex;
+    gap: 8px;
+    background-color: #e5ebf2;
+    padding: 4px;
+    border-radius: 99px;
+}
+
+.light-node {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 99px;
+    opacity: 0.4;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.light-node .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #8b95a1;
+}
+
+.light-node .text {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* Low Sugar styling (Green) */
+#sugar-low.active {
+    background-color: #ffffff;
+    opacity: 1;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+#sugar-low.active .dot { background-color: var(--success-green); box-shadow: 0 0 8px var(--success-green); }
+#sugar-low.active .text { color: var(--success-green); }
+
+/* Mid Sugar styling (Yellow) */
+#sugar-mid.active {
+    background-color: #ffffff;
+    opacity: 1;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+#sugar-mid.active .dot { background-color: var(--warning-yellow); box-shadow: 0 0 8px var(--warning-yellow); }
+#sugar-mid.active .text { color: var(--warning-yellow); }
+
+/* High Sugar styling (Red) */
+#sugar-high.active {
+    background-color: #ffffff;
+    opacity: 1;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+#sugar-high.active .dot { background-color: var(--danger-red); box-shadow: 0 0 8px var(--danger-red); }
+#sugar-high.active .text { color: var(--danger-red); }
+
+
+/* Buttons */
+.toss-btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 18px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.toss-btn-primary {
+    background-color: var(--toss-blue);
+    color: #ffffff;
+}
+
+.toss-btn-primary:active {
+    background-color: var(--toss-blue-hover);
+    transform: scale(0.98);
+}
+
+.toss-btn-primary:disabled {
+    background-color: #b0d1ff;
+    cursor: not-allowed;
+}
+
+.toss-btn-secondary {
+    background-color: var(--bg-light);
+    color: var(--text-secondary);
+}
+
+.toss-btn-secondary:active {
+    background-color: #e5ebf2;
+    transform: scale(0.98);
+}
+
+/* ==========================================
+   4. Recognition Failure Modal (3-time fail guide)
+   ========================================== */
+.modal-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+}
+
+.modal-card {
+    width: 100%;
+    max-width: 360px;
+    background: #ffffff;
+    border-radius: 28px;
+    padding: 28px;
+    text-align: center;
+    box-shadow: var(--shadow-premium);
+    animation: zoom-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.modal-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.modal-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.modal-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.modal-buttons .toss-btn {
+    padding: 14px;
+}
+
+/* ==========================================
+   Utilities & Animations
+   ========================================== */
+.hidden {
+    display: none !important;
+}
+
+@keyframes flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+@keyframes reticle-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes zoom-in {
+    0% { transform: scale(0.9); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}

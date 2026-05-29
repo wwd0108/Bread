@@ -6,8 +6,8 @@
     <title>빵속탐험 - 웹 AR</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     
-    <!-- Link directly to the template CSS we created! -->
-    <link rel="stylesheet" href="../Assets/WebGLTemplates/BreadAR/style.css">
+    <!-- Link directly to the copied CSS inside scratch! -->
+    <link rel="stylesheet" href="style.css">
     
     <style>
         /* Toast Alert message */
@@ -295,11 +295,11 @@
             var badgeText = document.getElementById("badge-text");
             var badge = document.getElementById("scan-badge");
 
-            // STEP 1: 카메라 켜짐과 동시에 인식 준비 상태 (0s ~ 3s)
+            // STEP 1: 카메라 켜짐과 동시에 인식 준비 상태 ("빵을 인식 시켜 주세요!")
             retryScanning();
-            instruction.innerText = "동그라미 영역에 빵이 잘 비치도록 맞추어 주세요";
+            instruction.innerText = "빵을 인식 시켜 주세요!";
             instruction.style.color = "#ffffff";
-            instruction.style.fontWeight = "500";
+            instruction.style.fontWeight = "700";
             
             // STEP 2: 빵 인식 시도 개시 (3s 경과 후)
             setTimeout(() => {
@@ -308,14 +308,14 @@
             }, 3000);
 
             function startScanAttempt(attemptNum) {
-                // 하단 가이드 텍스트 및 조준선 효과 활성화
+                // 하단 가이드 텍스트 및 조준선 효과 활성화 ("빵인식 중..")
                 badgeText.innerText = "빵 인식 중...";
                 badge.className = "badge badge-scan";
                 if (reticle) {
                     reticle.className = "reticle-circle analyzing";
                 }
                 if (instruction) {
-                    instruction.innerText = "빵 인식 중...";
+                    instruction.innerText = "빵인식 중..";
                     instruction.style.color = "var(--toss-blue)";
                     instruction.style.fontWeight = "700";
                 }
