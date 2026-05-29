@@ -245,6 +245,14 @@
     <!-- JavaScript Logic (Mocking Unity) -->
     <script>
         var breadDatabase = {
+            "hamcheese_morning_bread": {
+                name: "햄치즈 모닝빵",
+                category: "#든든한한끼 #단짠단짠",
+                price: "2,800원",
+                sugar: "low",
+                bg: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=800",
+                description: "부드럽고 촉촉한 모닝빵 속에 고소한 슬라이스 햄과 체다치즈가 가득 차 있어 입안 가득 짭조름함과 풍미를 선사합니다."
+            },
             "salt_bread": {
                 name: "소금빵",
                 category: "#겉바속촉 #버터가득",
@@ -366,7 +374,23 @@
 
         // Simulator Dashboard trigger handlers
         function simDetect(breadId) {
-            window.OnBreadDetected(breadId);
+            // 1. Show Analyzing State
+            document.getElementById("badge-text").innerText = "빵 분석 중...";
+            var badge = document.getElementById("scan-badge");
+            badge.className = "badge badge-scan";
+            
+            var reticle = document.querySelector(".reticle-circle");
+            if (reticle) reticle.classList.add("analyzing");
+            
+            var instruction = document.querySelector(".scan-instruction");
+            if (instruction) instruction.innerText = "빵을 인식하고 있습니다. 움직이지 마세요...";
+            
+            // 2. Wait 2 seconds, then trigger success!
+            setTimeout(() => {
+                window.OnBreadDetected(breadId);
+                if (reticle) reticle.classList.remove("analyzing");
+                if (instruction) instruction.innerText = "동그라미 영역에 빵이 잘 비치도록 맞추어 주세요";
+            }, 2000);
         }
         
         function simFail() {
