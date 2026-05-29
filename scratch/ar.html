@@ -269,9 +269,22 @@
                     const video = document.getElementById("webcam-video");
                     video.srcObject = stream;
                     console.log("Webcam started successfully.");
+                    
+                    // Start the scanning sequence ONLY when camera feed is actually rendering!
+                    video.onplaying = function() {
+                        if (!window.isPipelineRunning) {
+                            window.isPipelineRunning = true;
+                            runAutoScanPipeline();
+                        }
+                    };
                 })
                 .catch(function(err) {
                     console.error("Camera access error:", err);
+                    // Fallback to start pipeline even if camera stream fails
+                    if (!window.isPipelineRunning) {
+                        window.isPipelineRunning = true;
+                        runAutoScanPipeline();
+                    }
                 });
         }
 
@@ -369,7 +382,6 @@
 
         window.onload = function() {
             startCamera();
-            runAutoScanPipeline();
         };
     </script>
 </body>
