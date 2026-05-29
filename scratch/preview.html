@@ -160,7 +160,7 @@
         
         <!-- Header Status Bar -->
         <header class="app-header">
-            <div class="logo">Bread AR</div>
+            <div class="logo">빵속탐험</div>
             <div id="scan-badge" class="badge badge-scan">
                 <span class="pulse-dot"></span>
                 <span id="badge-text">빵 감지 대기 중</span>
@@ -374,8 +374,8 @@
 
         // Simulator Dashboard trigger handlers
         function simDetect(breadId) {
-            // 1. Show Analyzing State
-            document.getElementById("badge-text").innerText = "빵 분석 중...";
+            // 1. Show Analyzing State (빵 인식 중...)
+            document.getElementById("badge-text").innerText = "빵 인식 중...";
             var badge = document.getElementById("scan-badge");
             badge.className = "badge badge-scan";
             
@@ -383,13 +383,27 @@
             if (reticle) reticle.classList.add("analyzing");
             
             var instruction = document.querySelector(".scan-instruction");
-            if (instruction) instruction.innerText = "빵을 인식하고 있습니다. 움직이지 마세요...";
+            if (instruction) {
+                instruction.innerText = "빵 인식 중...";
+                instruction.style.color = "var(--toss-blue)";
+                instruction.style.fontWeight = "700";
+            }
             
-            // 2. Wait 2 seconds, then trigger success!
+            // 2. Wait 2 seconds, then trigger success! (인식 성공!)
             setTimeout(() => {
                 window.OnBreadDetected(breadId);
                 if (reticle) reticle.classList.remove("analyzing");
-                if (instruction) instruction.innerText = "동그라미 영역에 빵이 잘 비치도록 맞추어 주세요";
+                if (instruction) {
+                    instruction.innerText = "인식 성공!";
+                    instruction.style.color = "var(--success-green)";
+                    
+                    // Return to default text after 2s
+                    setTimeout(() => {
+                        instruction.innerText = "동그라미 영역에 빵이 잘 비치도록 맞추어 주세요";
+                        instruction.style.color = "#ffffff";
+                        instruction.style.fontWeight = "500";
+                    }, 2000);
+                }
             }, 2000);
         }
         
@@ -421,6 +435,13 @@
         window.onload = function() {
             retryScanning();
             startCamera();
+            
+            // Hands-free Auto simulation for mobile testing!
+            // Automatically starts 3 seconds after page loads, simulating tracking of the Ham Cheese Morning Bread
+            setTimeout(() => {
+                console.log("Auto-triggering simulated scan of Ham Cheese Morning Bread...");
+                simDetect("hamcheese_morning_bread");
+            }, 3500);
         };
     </script>
 </body>
