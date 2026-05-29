@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>빵속탐험 - 웹 AR</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Link directly to the template CSS we created! -->
+    <link rel="stylesheet" href="../Assets/WebGLTemplates/BreadAR/style.css">
+    
+    <style>
+        /* Toast Alert message */
+        #toast-alert {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: rgba(46, 204, 113, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 13px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            transform: translateY(-50px);
+            opacity: 0;
+            z-index: 600;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+        #toast-alert.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Real camera video styles */
+        #webcam-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 0;
+        }
+
+        /* Adjust UI overlay for preview layout */
+        @media (min-width: 600px) {
+            #web-ui-overlay {
+                max-width: 420px;
+                margin: 0 auto;
+                position: relative;
+                height: 100vh;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Real Camera Video Layer (100% visible, no placeholder overlays) -->
+    <video id="webcam-video" autoplay playsinline muted></video>
+
+    <!-- Toast message -->
+    <div id="toast-alert">🔪 유니티 3D 단면 절단 애니메이션 명령 전송!</div>
+
+    <!-- Frontend UI Overlay Layer (Toss Premium Design) -->
+    <div id="web-ui-overlay">
+        
+        <!-- Header Status Bar -->
+        <header class="app-header">
+            <div class="logo">빵속탐험</div>
+            <div id="scan-badge" class="badge badge-scan">
+                <span class="pulse-dot"></span>
+                <span id="badge-text">빵 감지 대기 중</span>
+            </div>
+        </header>
+
+        <!-- Dynamic Reticle (Scan Guide) -->
+        <div id="scan-guide" class="scan-guide-container">
+            <div class="reticle-circle">
+                <div class="corner top-left"></div>
+                <div class="corner top-right"></div>
+                <div class="corner bottom-left"></div>
+                <div class="corner bottom-right"></div>
+            </div>
+            <p class="scan-instruction">동그라미 영역에 빵이 잘 비치도록 맞추어 주세요</p>
+        </div>
+
+        <!-- 3. Bottom Information Card (Figma to Web UI) -->
+        <div id="bread-info-card" class="slide-card hidden">
+            <div class="card-drag-handle"></div>
+            
+            <div class="card-header">
+                <div class="bread-title-group">
+                    <h2 id="bread-name">프리미엄 소금빵</h2>
+                    <span id="bread-category" class="bread-tag">#시그니처</span>
+                </div>
+                <div class="price-tag" id="bread-price">3,500원</div>
+            </div>
+
+            <div class="card-body">
+                <!-- Sweetness Traffic Light (당도 신호등) -->
+                <div class="sweetness-container">
+                    <span class="label">당도 신호등</span>
+                    <div class="traffic-light-pill">
+                        <div id="sugar-low" class="light-node">
+                            <span class="dot"></span>
+                            <span class="text">저당</span>
+                        </div>
+                        <div id="sugar-mid" class="light-node">
+                            <span class="dot"></span>
+                            <span class="text">보통</span>
+                        </div>
+                        <div id="sugar-high" class="light-node">
+                            <span class="dot"></span>
+                            <span class="text">고당</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p id="bread-description" class="description-text">
+                    프랑스 발효버터를 아낌없이 사용하여 겉은 바삭하고 속은 부드러운 오리지널 소금빵입니다. 한 입 물었을 때 버터 풍미가 입안에 가득 차오릅니다.
+                </p>
+
+                <!-- Interactive CTA Button -->
+                <button id="slice-btn" class="toss-btn toss-btn-primary" onclick="requestSliceAnimation()">
+                    🥐 3D 단면 썰어보기
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. Recognition Failure Modal (3-time fail guide - Hidden in MVP) -->
+        <div id="failure-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-icon">😢</div>
+                <h3 class="modal-title">빵이 잘 인식되지 않나요?</h3>
+                <p class="modal-desc">
+                    카메라 각도를 살짝 바꾸거나, 조명이 밝은 곳에서 빵이 화면 정중앙에 위치하도록 촬영해 보세요. 
+                </p>
+                <div class="modal-buttons">
+                    <button class="toss-btn toss-btn-secondary" onclick="manualFallback()">
+                        수동으로 정보 보기
+                    </button>
+                    <button class="toss-btn toss-btn-primary" onclick="retryScanning()">
+                        다시 시도하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Logic (Mocking Unity) -->
+    <script>
+        var breadDatabase = {
+            "hamcheese_morning_bread": {
+                name: "햄치즈 모닝빵",
+                category: "#든든한한끼 #단짠단짠",
+                price: "2,800원",
+                sugar: "low",
+                description: "부드럽고 촉촉한 모닝빵 속에 고소한 슬라이스 햄과 체다치즈가 가득 차 있어 입안 가득 짭조름함과 풍미를 선사합니다."
+            },
+            "salt_bread": {
+                name: "소금빵",
+                category: "#겉바속촉 #버터가득",
+                price: "3,500원",
+                sugar: "low",
+                description: "프랑스 엘르앤비르 발효버터의 깊은 고소함과 말돈 천일염의 짭조름한 조화가 환상적인 베스트셀러 소금빵입니다."
+            },
+            "melon_bread": {
+                name: "메론빵",
+                category: "#달달바삭 #일본전통",
+                price: "3,800원",
+                sugar: "high",
+                description: "바삭바삭 달콤한 메론 쿠키 껍질 속 촉촉하고 부드러운 우유 식빵 결이 숨어있는 입안 가득 행복해지는 메론빵입니다."
+            },
+            "croissant": {
+                name: "크루아상",
+                category: "#겹겹이예술 #바삭촉촉",
+                price: "4,000원",
+                sugar: "mid",
+                description: "얇은 페이스트리 결이 겹겹이 살아있어 한 입 베어물면 파삭하게 부서지며 진한 버터 향을 발산하는 크루아상입니다."
+            }
+        };
+
+        // Simulated function: On Bread Detected
+        window.OnBreadDetected = function(breadId) {
+            var bread = breadDatabase[breadId];
+            if (!bread) return;
+
+            // 1. Update UI Content
+            document.getElementById("bread-name").innerText = bread.name;
+            document.getElementById("bread-category").innerText = bread.category;
+            document.getElementById("bread-price").innerText = bread.price;
+            document.getElementById("bread-description").innerText = bread.description;
+
+            // 2. Set Sweetness Traffic Light
+            updateTrafficLight(bread.sugar);
+
+            // 3. Update Status Badges
+            document.getElementById("badge-text").innerText = "인식 성공!";
+            var badge = document.getElementById("scan-badge");
+            badge.className = "badge badge-success";
+
+            // 4. Hide guide and slide up info card
+            document.getElementById("scan-guide").classList.add("hidden");
+            var card = document.getElementById("bread-info-card");
+            card.classList.remove("hidden");
+            card.classList.add("active");
+            
+            // 5. Hide failure modal if active
+            document.getElementById("failure-modal").classList.add("hidden");
+        };
+
+        // Utility: Sweetness Traffic Light UI controller
+        function updateTrafficLight(level) {
+            document.getElementById("sugar-low").classList.remove("active");
+            document.getElementById("sugar-mid").classList.remove("active");
+            document.getElementById("sugar-high").classList.remove("active");
+
+            if (level === "low") {
+                document.getElementById("sugar-low").classList.add("active");
+            } else if (level === "mid") {
+                document.getElementById("sugar-mid").classList.add("active");
+            } else if (level === "high") {
+                document.getElementById("sugar-high").classList.add("active");
+            }
+        }
+
+        // Simulate slice animation trigger
+        function requestSliceAnimation() {
+            var toast = document.getElementById("toast-alert");
+            toast.classList.add("show");
+            
+            var btn = document.getElementById("slice-btn");
+            btn.innerText = "🔪 3D 단면 절단 중...";
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                toast.classList.remove("show");
+                btn.innerText = "🥐 3D 단면 잘라보기";
+                btn.disabled = false;
+            }, 2500);
+        }
+
+        function retryScanning() {
+            document.getElementById("scan-guide").classList.remove("hidden");
+            
+            document.getElementById("badge-text").innerText = "빵 감지 대기 중";
+            var badge = document.getElementById("scan-badge");
+            badge.className = "badge badge-scan";
+            
+            var card = document.getElementById("bread-info-card");
+            card.classList.remove("active");
+            card.classList.add("hidden");
+        }
+
+        // Start device camera and stream to background
+        function startCamera() {
+            const constraints = {
+                video: {
+                    facingMode: "environment" // Use rear-facing camera on mobile phones
+                },
+                audio: false
+            };
+            
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(function(stream) {
+                    const video = document.getElementById("webcam-video");
+                    video.srcObject = stream;
+                    console.log("Webcam started successfully.");
+                })
+                .catch(function(err) {
+                    console.error("Camera access error:", err);
+                });
+        }
+
+        // Automatic hands-free state machine for mobile testing!
+        function runAutoScanPipeline() {
+            var reticle = document.querySelector(".reticle-circle");
+            var instruction = document.querySelector(".scan-instruction");
+            var badgeText = document.getElementById("badge-text");
+            var badge = document.getElementById("scan-badge");
+
+            // STEP 1: 카메라 켜짐과 동시에 인식 준비 상태 (0s ~ 3s)
+            retryScanning();
+            instruction.innerText = "동그라미 영역에 빵이 잘 비치도록 맞추어 주세요";
+            instruction.style.color = "#ffffff";
+            instruction.style.fontWeight = "500";
+            
+            // STEP 2: 빵 인식 시도 개시 (3s 경과 후)
+            setTimeout(() => {
+                console.log("[Auto Flow] 빵 인식 시도 1회차 개시...");
+                startScanAttempt(1);
+            }, 3000);
+
+            function startScanAttempt(attemptNum) {
+                // 하단 가이드 텍스트 및 조준선 효과 활성화
+                badgeText.innerText = "빵 인식 중...";
+                badge.className = "badge badge-scan";
+                if (reticle) {
+                    reticle.className = "reticle-circle analyzing";
+                }
+                if (instruction) {
+                    instruction.innerText = "빵 인식 중...";
+                    instruction.style.color = "var(--toss-blue)";
+                    instruction.style.fontWeight = "700";
+                }
+
+                // 각 빵 인식 시도당 3.5초가 걸린다고 가정
+                setTimeout(() => {
+                    if (attemptNum < 3) {
+                        // 실패 효과 연출 (빨간색 깜빡)
+                        console.log(`[Auto Flow] 빵 인식 시도 ${attemptNum}회차 실패...`);
+                        if (reticle) {
+                            reticle.className = "reticle-circle failed-flash";
+                        }
+                        
+                        // 0.6초간 실패 상태 노출 후 다음 시도 준비
+                        setTimeout(() => {
+                            startScanAttempt(attemptNum + 1);
+                        }, 600);
+                    } else {
+                        // 3회차 최종 실패 전환 (네임택 인식 유도)
+                        console.log("[Auto Flow] 3회 스캔 최종 실패! 네임택 모드로 전환합니다.");
+                        if (reticle) {
+                            reticle.className = "reticle-circle failed-flash";
+                        }
+
+                        setTimeout(() => {
+                            // STEP 3: "빵 인식 실패.. 네임텍 인식해 주세요" 문구 띄우기 및 네임택 조준선 색 변경
+                            badgeText.innerText = "네임텍 인식 대기 중";
+                            if (reticle) {
+                                reticle.className = "reticle-circle nametag-scanning";
+                            }
+                            if (instruction) {
+                                instruction.innerText = "빵 인식 실패.. 네임텍 인식해 주세요";
+                                instruction.style.color = "var(--warning-yellow)";
+                                instruction.style.fontWeight = "700";
+                            }
+
+                            // STEP 4: 네임택 스캔 시도 (4초 후 성공)
+                            setTimeout(() => {
+                                console.log("[Auto Flow] 네임택 인식 성공!");
+                                if (reticle) {
+                                    reticle.className = "reticle-circle success-green";
+                                }
+                                if (instruction) {
+                                    instruction.innerText = "인식 성공!";
+                                    instruction.style.color = "var(--success-green)";
+                                    instruction.style.fontWeight = "800";
+                                }
+
+                                // 1.2초 후 하단 Toss 시트 부드럽게 활성화하며 조준선 페이드아웃
+                                setTimeout(() => {
+                                    window.OnBreadDetected("hamcheese_morning_bread");
+                                    if (reticle) {
+                                        reticle.classList.remove("success-green");
+                                    }
+                                }, 1200);
+
+                            }, 4000); // 네임택 스캔에 걸리는 시간
+
+                        }, 600);
+                    }
+                }, 3500); // 1회 시도당 걸리는 시간
+            }
+        }
+
+        window.onload = function() {
+            startCamera();
+            runAutoScanPipeline();
+        };
+    </script>
+</body>
+</html>
